@@ -31,60 +31,65 @@ pipeline {
             }
         }
 
+        stage('Parallel Test Execution') {
+            parallel {
 
-stage('Parallel Test Execution') {
-    parallel {
+                stage('Smoke Tests') {
+                    steps {
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@smoke" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
+                    }
+                }
 
-        stage('Smoke Tests') {
-            steps {
-                sh """
-                docker run --rm \
-                -v ${WORKSPACE}:/app \
-                -w /app/KarateDockerParallelTest \
-                maven:3.9.6-eclipse-temurin-17 \
-                mvn clean test \
-                -Dcucumber.filter.tags="@smoke" \
-                -Denv=${params.TEST_ENV} \
-                -Dmaven.test.failure.ignore=true
-                """
+                stage('Regression Tests') {
+                    steps {
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@regression" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
+                    }
+                }
+
+                stage('Sanity Tests') {
+                    steps {
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@sanity" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
+                    }
+                }
             }
         }
-
-        stage('Regression Tests') {
-            steps {
-                sh """
-                docker run --rm \
-                -v ${WORKSPACE}:/app \
-                -w /app/KarateDockerParallelTest \
-                maven:3.9.6-eclipse-temurin-17 \
-                mvn clean test \
-                -Dcucumber.filter.tags="@regression" \
-                -Denv=${params.TEST_ENV} \
-                -Dmaven.test.failure.ignore=true
-                """
-            }
-        }
-
-        stage('Sanity Tests') {
-            steps {
-                sh """
-                docker run --rm \
-                -v ${WORKSPACE}:/app \
-                -w /app/KarateDockerParallelTest \
-                maven:3.9.6-eclipse-temurin-17 \
-                mvn clean test \
-                -Dcucumber.filter.tags="@sanity" \
-                -Denv=${params.TEST_ENV} \
-                -Dmaven.test.failure.ignore=true
-                """
-            }
-        }
-    }
-}
 
         stage('Generate Allure Report') {
             steps {
-                sh 'mvn io.qameta.allure:allure-maven:report'
+                sh """
+                docker run --rm \
+                -v ${WORKSPACE}:/app \
+                -w /app \
+                ${MAVEN_IMAGE} \
+                mvn io.qameta.allure:allure-maven:report
+                """
             }
         }
 
@@ -119,9 +124,14 @@ stage('Parallel Test Execution') {
         success {
             emailext(
                 subject: "✅ API Tests Passed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """<h2>Build Successful 🚀</h2>
-                         <b>Environment:</b> ${params.TEST_ENV}<br>
-                         <b>Allure Report:</b> <a href="${env.BUILD_URL}allure">View Online</a>""",
+                body: """
+                <h2>Build Successful 🚀</h2>
+                <b>Environment:</b> ${params.TEST_ENV}<br><br>
+                <b>Allure Report:</b> 
+                <a href="${env.BUILD_URL}allure">View Online Report</a><br><br>
+                <b>Build URL:</b> 
+                <a href="${env.BUILD_URL}">${env.BUILD_URL}</a>
+                """,
                 attachmentsPattern: 'allure-report.zip',
                 mimeType: 'text/html',
                 to: "${EMAIL_RECIPIENTS}"
@@ -131,9 +141,11 @@ stage('Parallel Test Execution') {
         unstable {
             emailext(
                 subject: "⚠️ API Tests Unstable | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """<h2>Tests Failed ⚠️</h2>
-                         <b>Environment:</b> ${params.TEST_ENV}<br>
-                         <a href="${env.BUILD_URL}allure">View Report</a>""",
+                body: """
+                <h2>Some Tests Failed ⚠️</h2>
+                <b>Environment:</b> ${params.TEST_ENV}<br><br>
+                <a href="${env.BUILD_URL}allure">View Allure Report</a>
+                """,
                 attachmentsPattern: 'allure-report.zip',
                 mimeType: 'text/html',
                 to: "${EMAIL_RECIPIENTS}"
@@ -143,11 +155,14 @@ stage('Parallel Test Execution') {
         failure {
             emailext(
                 subject: "❌ Pipeline Failed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """<h2>Pipeline Error ❌</h2>
-                         <a href="${env.BUILD_URL}console">Console Output</a>""",
+                body: """
+                <h2>Pipeline Failed ❌</h2>
+                <b>Environment:</b> ${params.TEST_ENV}<br><br>
+                <a href="${env.BUILD_URL}console">View Console Output</a>
+                """,
+                mimeType: 'text/html',
                 to: "${EMAIL_RECIPIENTS}"
             )
         }
     }
 }
-
