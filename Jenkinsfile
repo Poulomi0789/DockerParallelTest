@@ -11,38 +11,54 @@ pipeline {
     }
 
     stages {
-        stage('Checkout & Clean') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
-                // Clean once at the start
-                sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean"
             }
         }
 
         stage('Parallel Test Execution') {
-            // We put the agent here so one container handles all parallel threads
-            agent {
-                docker {
-                    image "${MAVEN_IMAGE}"
-                    reuseNode true
-                    // Added --init to reap zombie processes that cause hangs
-                    args "-v /var/run/docker.sock:/var/run/docker.sock --init"
-                }
-            }
             parallel {
                 stage('Smoke Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
+                        // Added timeout inside the branch to force-close if it hangs
+                        timeout(time: 10, unit: 'MINUTES') {
+                            sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
+                        }
                     }
                 }
+
                 stage('Regression Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
+                        timeout(time: 10, unit: 'MINUTES') {
+                            sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
+                        }
                     }
                 }
+
                 stage('Sanity Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
+                        timeout(time: 10, unit: 'MINUTES') {
+                            sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
+                        }
                     }
                 }
             }
@@ -65,6 +81,7 @@ pipeline {
         always {
             junit 'target/**/*-reports/*.xml'
         }
+
         success {
             emailext(
                 subject: "✅ SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
@@ -73,6 +90,7 @@ pipeline {
                 mimeType: 'text/html'
             )
         }
+
         failure {
             emailext(
                 subject: "❌ FAILURE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
