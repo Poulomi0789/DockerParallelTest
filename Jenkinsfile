@@ -13,9 +13,16 @@ pipeline {
 
     stages {
 
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Verify Workspace') {
             steps {
                 sh 'ls -la'
+                sh "ls -la ${PROJECT_DIR}"
             }
         }
 
@@ -71,14 +78,45 @@ pipeline {
 
         stage('Generate Allure Report') {
             steps {
-                sh "ls -la ${PROJECT_DIR}/target"
+                allure includeProperties: false,
+                       jdk: '',
+                       results: [[path: "${PROJECT_DIR}/target/allure-results"]]
             }
         }
     }
 
     post {
+
         always {
             junit '**/target/surefire-reports/*.xml'
+        }
+
+        success {
+            emailext(
+                subject: "✅ SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                <h2>Build Successful 🎉</h2>
+                <p><b>Job:</b> ${env.JOB_NAME}</p>
+                <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
+                <p><b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                """,
+                to: "poulomidas89@gmail.com",
+                mimeType: 'text/html'
+            )
+        }
+
+        failure {
+            emailext(
+                subject: "❌ FAILURE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                <h2>Build Failed ❌</h2>
+                <p><b>Job:</b> ${env.JOB_NAME}</p>
+                <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
+                <p><b>Check Console:</b> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
+                """,
+                to: "poulomidas89@gmail.com",
+                mimeType: 'text/html'
+            )
         }
     }
 }
