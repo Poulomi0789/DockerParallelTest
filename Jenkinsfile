@@ -25,23 +25,42 @@ pipeline {
             }
         }
 
-       stage('Parallel Test Execution') {
+stage('Parallel Test Execution') {
             parallel {
                 stage('Smoke Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            // This reuseNode ensures it stays in the same workspace
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "mvn clean test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
 
                 stage('Regression Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "mvn clean test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
 
                 stage('Sanity Tests') {
+                    agent {
+                        docker { 
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true 
+                        }
+                    }
                     steps {
-                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "mvn clean test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
             }
@@ -82,4 +101,5 @@ pipeline {
         }
     }
 }
+
 
