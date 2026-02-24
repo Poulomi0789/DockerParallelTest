@@ -31,55 +31,56 @@ pipeline {
             }
         }
 
-        stage('Parallel Test Execution') {
-            parallel {
 
-                stage('Smoke Tests') {
-                    steps {
-                        sh """
-                        docker run --rm \
-                        -v ${WORKSPACE}:/app \
-                        -w /app \
-                        ${MAVEN_IMAGE} \
-                        mvn clean test \
-                        -Dcucumber.filter.tags="@smoke" \
-                        -Denv=${params.TEST_ENV} \
-                        -Dmaven.test.failure.ignore=true
-                        """
-                    }
-                }
+stage('Parallel Test Execution') {
+    parallel {
 
-                stage('Regression Tests') {
-                    steps {
-                        sh """
-                        docker run --rm \
-                        -v ${WORKSPACE}:/app \
-                        -w /app \
-                        ${MAVEN_IMAGE} \
-                        mvn clean test \
-                        -Dcucumber.filter.tags="@regression" \
-                        -Denv=${params.TEST_ENV} \
-                        -Dmaven.test.failure.ignore=true
-                        """
-                    }
-                }
-
-                stage('Sanity Tests') {
-                    steps {
-                        sh """
-                        docker run --rm \
-                        -v ${WORKSPACE}:/app \
-                        -w /app \
-                        ${MAVEN_IMAGE} \
-                        mvn clean test \
-                        -Dcucumber.filter.tags="@sanity" \
-                        -Denv=${params.TEST_ENV} \
-                        -Dmaven.test.failure.ignore=true
-                        """
-                    }
-                }
+        stage('Smoke Tests') {
+            steps {
+                sh """
+                docker run --rm \
+                -v ${WORKSPACE}:/app \
+                -w /app/KarateDockerParallelTest \
+                maven:3.9.6-eclipse-temurin-17 \
+                mvn clean test \
+                -Dcucumber.filter.tags="@smoke" \
+                -Denv=${params.TEST_ENV} \
+                -Dmaven.test.failure.ignore=true
+                """
             }
         }
+
+        stage('Regression Tests') {
+            steps {
+                sh """
+                docker run --rm \
+                -v ${WORKSPACE}:/app \
+                -w /app/KarateDockerParallelTest \
+                maven:3.9.6-eclipse-temurin-17 \
+                mvn clean test \
+                -Dcucumber.filter.tags="@regression" \
+                -Denv=${params.TEST_ENV} \
+                -Dmaven.test.failure.ignore=true
+                """
+            }
+        }
+
+        stage('Sanity Tests') {
+            steps {
+                sh """
+                docker run --rm \
+                -v ${WORKSPACE}:/app \
+                -w /app/KarateDockerParallelTest \
+                maven:3.9.6-eclipse-temurin-17 \
+                mvn clean test \
+                -Dcucumber.filter.tags="@sanity" \
+                -Denv=${params.TEST_ENV} \
+                -Dmaven.test.failure.ignore=true
+                """
+            }
+        }
+    }
+}
 
         stage('Generate Allure Report') {
             steps {
@@ -149,3 +150,4 @@ pipeline {
         }
     }
 }
+
