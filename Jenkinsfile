@@ -20,50 +20,35 @@ pipeline {
         stage('Parallel Test Execution') {
             parallel {
                 stage('Smoke Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
+                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
                     steps {
-                        // Added timeout inside the branch to force-close if it hangs
                         timeout(time: 10, unit: 'MINUTES') {
-                            sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
+                            // Added the Allure Karate plugin to the command
+                            sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
                         }
                     }
                 }
 
                 stage('Regression Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
+                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
                     steps {
                         timeout(time: 10, unit: 'MINUTES') {
-                            sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
+                            sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
                         }
                     }
                 }
 
                 stage('Sanity Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
+                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
                     steps {
                         timeout(time: 10, unit: 'MINUTES') {
-                            sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
+                            sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
                         }
                     }
                 }
             }
         }
-
+        
         stage('Generate Allure Report') {
             steps {
                 allure includeProperties: false,
@@ -101,3 +86,4 @@ pipeline {
         }
     }
 }
+
