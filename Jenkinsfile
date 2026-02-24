@@ -11,17 +11,9 @@ pipeline {
     }
 
     stages {
-        stage('Initialize & Clean') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
-                // Run clean once here so parallel containers don't fight over the target folder
-                sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean"
-            }
-        }
-
-        stage('Verify Workspace') {
-            steps {
-                sh 'ls -la'
             }
         }
 
@@ -35,7 +27,7 @@ pipeline {
                         }
                     }
                     steps {
-                        // Isolated to target/smoke-reports
+                        // Added -Dsurefire.reportsDirectory to isolate results
                         sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
                     }
                 }
@@ -48,7 +40,7 @@ pipeline {
                         }
                     }
                     steps {
-                        // Isolated to target/regression-reports
+                        // Added -Dsurefire.reportsDirectory to isolate results
                         sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
                     }
                 }
@@ -61,7 +53,7 @@ pipeline {
                         }
                     }
                     steps {
-                        // Isolated to target/sanity-reports
+                        // Added -Dsurefire.reportsDirectory to isolate results
                         sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
                     }
                 }
@@ -70,7 +62,7 @@ pipeline {
 
         stage('Generate Allure Report') {
             steps {
-                // Merges results from all three unique folders into one report
+                // Updated to pull from the three isolated directories
                 allure includeProperties: false,
                        jdk: '',
                        results: [
@@ -84,14 +76,14 @@ pipeline {
 
     post {
         always {
-            // Scans the sub-folders for exactly the 4 tests executed
+            // Updated to scan all sub-folders so the final count is exactly 4
             junit 'target/**/*-reports/*.xml'
         }
 
         success {
             emailext(
                 subject: "✅ SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-                body: "<h2>Build Successful 🎉</h2><p><b>Job:</b> ${env.JOB_NAME}</p><p><b>URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>",
+                body: "<h2>Build Successful 🎉</h2><p>URL: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>",
                 to: "poulomidas89@gmail.com",
                 mimeType: 'text/html'
             )
@@ -100,7 +92,7 @@ pipeline {
         failure {
             emailext(
                 subject: "❌ FAILURE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-                body: "<h2>Build Failed ❌</h2><p><b>Job:</b> ${env.JOB_NAME}</p><p><b>Console:</b> <a href='${env.BUILD_URL}console'>${env.BUILD_URL}console</a></p>",
+                body: "<h2>Build Failed ❌</h2><p>Console: <a href='${env.BUILD_URL}console'>${env.BUILD_URL}console</a></p>",
                 to: "poulomidas89@gmail.com",
                 mimeType: 'text/html'
             )
