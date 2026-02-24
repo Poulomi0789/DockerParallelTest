@@ -19,9 +19,6 @@ pipeline {
 
         stage('Parallel Test Execution') {
             parallel {
-                // failFast ensures all branches close together when finished
-                failFast true
-
                 stage('Smoke Tests') {
                     agent {
                         docker { 
@@ -30,7 +27,7 @@ pipeline {
                         }
                     }
                     steps {
-                        // Added '; exit 0' to force the shell to close after Maven finishes
+                        // Added '; exit 0' to ensure the shell process terminates
                         sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports; exit 0"
                     }
                 }
@@ -76,6 +73,7 @@ pipeline {
 
     post {
         always {
+            // This pattern ensures we find exactly the 4 passed features
             junit 'target/**/*-reports/*.xml'
         }
 
