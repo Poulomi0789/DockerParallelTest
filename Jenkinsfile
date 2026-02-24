@@ -26,16 +26,15 @@ pipeline {
             }
         }
 
-        stage('Parallel Test Execution') {
+stage('Parallel Test Execution') {
             parallel {
-
                 stage('Smoke Tests') {
                     steps {
                         sh """
                         docker run --rm \
-                        -v \$WORKSPACE:/workspace \
-                        -w /workspace/\$PROJECT_DIR \
-                        \$MAVEN_IMAGE \
+                        -v ${WORKSPACE}:/workspace \
+                        -w /workspace \
+                        ${MAVEN_IMAGE} \
                         mvn clean test \
                         -Dcucumber.filter.tags=@smoke \
                         -Denv=qa \
@@ -48,9 +47,9 @@ pipeline {
                     steps {
                         sh """
                         docker run --rm \
-                        -v \$WORKSPACE:/workspace \
-                        -w /workspace/\$PROJECT_DIR \
-                        \$MAVEN_IMAGE \
+                        -v ${WORKSPACE}:/workspace \
+                        -w /workspace \
+                        ${MAVEN_IMAGE} \
                         mvn clean test \
                         -Dcucumber.filter.tags=@regression \
                         -Denv=qa \
@@ -63,9 +62,9 @@ pipeline {
                     steps {
                         sh """
                         docker run --rm \
-                        -v \$WORKSPACE:/workspace \
-                        -w /workspace/\$PROJECT_DIR \
-                        \$MAVEN_IMAGE \
+                        -v ${WORKSPACE}:/workspace \
+                        -w /workspace \
+                        ${MAVEN_IMAGE} \
                         mvn clean test \
                         -Dcucumber.filter.tags=@sanity \
                         -Denv=qa \
@@ -75,7 +74,6 @@ pipeline {
                 }
             }
         }
-
         stage('Generate Allure Report') {
             steps {
                 allure includeProperties: false,
@@ -120,3 +118,4 @@ pipeline {
         }
     }
 }
+
