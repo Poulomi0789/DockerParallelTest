@@ -14,7 +14,7 @@ pipeline {
         GIT_URL = 'https://github.com/Poulomi0789/DockerParallelTest.git'
         GIT_BRANCH = 'main'
         EMAIL_RECIPIENTS = 'poulomidas89@gmail.com'
-        IMAGE_NAME = "api-tests:${env.BUILD_NUMBER}"
+        MAVEN_IMAGE = 'maven:3.9.6-eclipse-temurin-17'
     }
 
     options {
@@ -31,59 +31,51 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    dockerImage = docker.build("${IMAGE_NAME}")
-                }
-            }
-        }
-
         stage('Parallel Test Execution') {
             parallel {
 
                 stage('Smoke Tests') {
                     steps {
-                        script {
-                            dockerImage.inside {
-                                sh """
-                                mvn clean test \
-                                -Dcucumber.filter.tags="@smoke" \
-                                -Denv=${params.TEST_ENV} \
-                                -Dmaven.test.failure.ignore=true
-                                """
-                            }
-                        }
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@smoke" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
                     }
                 }
 
                 stage('Regression Tests') {
                     steps {
-                        script {
-                            dockerImage.inside {
-                                sh """
-                                mvn clean test \
-                                -Dcucumber.filter.tags="@regression" \
-                                -Denv=${params.TEST_ENV} \
-                                -Dmaven.test.failure.ignore=true
-                                """
-                            }
-                        }
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@regression" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
                     }
                 }
 
                 stage('Sanity Tests') {
                     steps {
-                        script {
-                            dockerImage.inside {
-                                sh """
-                                mvn clean test \
-                                -Dcucumber.filter.tags="@sanity" \
-                                -Denv=${params.TEST_ENV} \
-                                -Dmaven.test.failure.ignore=true
-                                """
-                            }
-                        }
+                        sh """
+                        docker run --rm \
+                        -v ${WORKSPACE}:/app \
+                        -w /app \
+                        ${MAVEN_IMAGE} \
+                        mvn clean test \
+                        -Dcucumber.filter.tags="@sanity" \
+                        -Denv=${params.TEST_ENV} \
+                        -Dmaven.test.failure.ignore=true
+                        """
                     }
                 }
             }
