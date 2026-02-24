@@ -11,48 +11,38 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout & Clean') {
             steps {
                 checkout scm
+                // Clean once at the start
+                sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean"
             }
         }
 
         stage('Parallel Test Execution') {
+            // We put the agent here so one container handles all parallel threads
+            agent {
+                docker {
+                    image "${MAVEN_IMAGE}"
+                    reuseNode true
+                    // Added --init to reap zombie processes that cause hangs
+                    args "-v /var/run/docker.sock:/var/run/docker.sock --init"
+                }
+            }
             parallel {
                 stage('Smoke Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
                     steps {
-                        // Added '; exit 0' to ensure the shell process terminates
-                        sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports; exit 0"
+                        sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
                     }
                 }
-
                 stage('Regression Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
                     steps {
-                        sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports; exit 0"
+                        sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
                     }
                 }
-
                 stage('Sanity Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
                     steps {
-                        sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports; exit 0"
+                        sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
                     }
                 }
             }
@@ -73,25 +63,16 @@ pipeline {
 
     post {
         always {
-            // This pattern ensures we find exactly the 4 passed features
             junit 'target/**/*-reports/*.xml'
         }
-
         success {
             emailext(
                 subject: "✅ SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-                body: """
-                <h2>Build Successful 🎉</h2>
-                <p><b>Job:</b> ${env.JOB_NAME}</p>
-                <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
-                <p><b>Allure Report:</b> <a href="${env.BUILD_URL}allure/">View Test Report</a></p>
-                <p><b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                """,
+                body: "<h2>Build Successful 🎉</h2><p>URL: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>",
                 to: "poulomidas89@gmail.com",
                 mimeType: 'text/html'
             )
         }
-
         failure {
             emailext(
                 subject: "❌ FAILURE: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
