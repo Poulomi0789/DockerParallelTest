@@ -10,11 +10,14 @@ public class TestRunnerParallel {
 
     @Test
     void testParallel() {
-        // List all feature files you want to run in parallel
+
+        String tags = System.getProperty("cucumber.filter.tags");
+
         Results results = Runner.path("classpath:features")
+                .tags(tags)
                 .hook(new AllureKarate())
                 .outputCucumberJson(true)
-                .parallel(4); // 🔥 Runs ALL features in parallel
+                .parallel(4);
 
         assertEquals(0, results.getFailCount(), results.getErrorMessages());
     }
