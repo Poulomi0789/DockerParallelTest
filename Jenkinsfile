@@ -11,8 +11,6 @@ pipeline {
     }
 
     environment {
-        GIT_URL = 'https://github.com/Poulomi0789/DockerParallelTest.git'
-        GIT_BRANCH = 'main'
         EMAIL_RECIPIENTS = 'poulomidas89@gmail.com'
         MAVEN_IMAGE = 'maven:3.9.6-eclipse-temurin-17'
     }
@@ -25,9 +23,9 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Verify Workspace') {
             steps {
-                git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
+                sh 'ls -la'
             }
         }
 
@@ -93,18 +91,6 @@ pipeline {
             }
         }
 
-        stage('Zip Report') {
-            steps {
-                script {
-                    if (fileExists('target/site/allure-maven-plugin')) {
-                        zip zipFile: 'allure-report.zip',
-                            dir: 'target/site/allure-maven-plugin',
-                            archive: true
-                    }
-                }
-            }
-        }
-
         stage('Publish Allure') {
             steps {
                 allure includeProperties: false, results: [
@@ -117,36 +103,17 @@ pipeline {
     post {
 
         always {
-            archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
             junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
         }
 
         success {
             emailext(
-                subject: "✅ API Tests Passed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "✅ Tests Passed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
                 <h2>Build Successful 🚀</h2>
                 <b>Environment:</b> ${params.TEST_ENV}<br><br>
-                <b>Allure Report:</b> 
-                <a href="${env.BUILD_URL}allure">View Online Report</a><br><br>
-                <b>Build URL:</b> 
-                <a href="${env.BUILD_URL}">${env.BUILD_URL}</a>
-                """,
-                attachmentsPattern: 'allure-report.zip',
-                mimeType: 'text/html',
-                to: "${EMAIL_RECIPIENTS}"
-            )
-        }
-
-        unstable {
-            emailext(
-                subject: "⚠️ API Tests Unstable | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                <h2>Some Tests Failed ⚠️</h2>
-                <b>Environment:</b> ${params.TEST_ENV}<br><br>
                 <a href="${env.BUILD_URL}allure">View Allure Report</a>
                 """,
-                attachmentsPattern: 'allure-report.zip',
                 mimeType: 'text/html',
                 to: "${EMAIL_RECIPIENTS}"
             )
@@ -157,7 +124,6 @@ pipeline {
                 subject: "❌ Pipeline Failed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
                 <h2>Pipeline Failed ❌</h2>
-                <b>Environment:</b> ${params.TEST_ENV}<br><br>
                 <a href="${env.BUILD_URL}console">View Console Output</a>
                 """,
                 mimeType: 'text/html',
