@@ -1,4 +1,4 @@
-@regression
+@sanity
 Feature: Update a post
 
   Background:
@@ -13,3 +13,4 @@ Feature: Update a post
     * match response.title == 'Updated Title'
     * match response.body == 'Updated body content'
     * print 'Updated Post Response:', response
+
