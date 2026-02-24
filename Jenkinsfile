@@ -1,24 +1,20 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9.9-eclipse-temurin-17'
-            // Using a named volume 'maven-repo' is more reliable on Windows Docker
-            args '-v maven-repo:/root/.m2'
-        }
-    }
+
+    agent any
 
     parameters {
         choice(
             name: 'TEST_ENV',
             choices: ['qa', 'stage', 'prod'],
-            description: 'Select environment to run Karate tests'
+            description: 'Select environment'
         )
     }
 
     environment {
-        GIT_URL = 'https://github.com/Poulomi0789/KarateAdvanced.git'
+        GIT_URL = 'https://github.com/Poulomi0789/DockerParallelTest.git'
         GIT_BRANCH = 'main'
         EMAIL_RECIPIENTS = 'poulomidas89@gmail.com'
+        IMAGE_NAME = "api-tests:${env.BUILD_NUMBER}"
     }
 
     options {
@@ -28,66 +24,110 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
             }
         }
 
-        stage('Run Karate Tests') {
+        stage('Build Docker Image') {
             steps {
-                // 'retry' helps with flaky network issues during maven downloads
-                retry(2) {
-                    sh """
-                    mvn clean test \
-                    -Dkarate.env=${params.TEST_ENV} \
-                    -Dmaven.test.failure.ignore=true
-                    """
+                script {
+                    dockerImage = docker.build("${IMAGE_NAME}")
                 }
             }
         }
 
-        stage('Generate & Zip Report') {
-            steps {
-                // 1. Generate the report site
-                sh 'mvn io.qameta.allure:allure-maven:report'
-                
-                // 2. Use native Jenkins zip (requires Pipeline Utility Steps plugin)
-                script {
-                    if (fileExists('target/site/allure-maven-plugin')) {
-                        zip zipFile: 'allure-report.zip', 
-                            dir: 'target/site/allure-maven-plugin', 
-                            archive: true
-                    } else {
-                        echo "Warning: Allure report directory not found, skipping zip."
+        stage('Parallel Test Execution') {
+            parallel {
+
+                stage('Smoke Tests') {
+                    steps {
+                        script {
+                            dockerImage.inside {
+                                sh """
+                                mvn clean test \
+                                -Dcucumber.filter.tags="@smoke" \
+                                -Denv=${params.TEST_ENV} \
+                                -Dmaven.test.failure.ignore=true
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Regression Tests') {
+                    steps {
+                        script {
+                            dockerImage.inside {
+                                sh """
+                                mvn clean test \
+                                -Dcucumber.filter.tags="@regression" \
+                                -Denv=${params.TEST_ENV} \
+                                -Dmaven.test.failure.ignore=true
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Sanity Tests') {
+                    steps {
+                        script {
+                            dockerImage.inside {
+                                sh """
+                                mvn clean test \
+                                -Dcucumber.filter.tags="@sanity" \
+                                -Denv=${params.TEST_ENV} \
+                                -Dmaven.test.failure.ignore=true
+                                """
+                            }
+                        }
                     }
                 }
             }
         }
 
-        stage('Publish to Jenkins') {
+        stage('Generate Allure Report') {
             steps {
-                // Captures results from multiple possible locations to ensure the chart populates
+                sh 'mvn io.qameta.allure:allure-maven:report'
+            }
+        }
+
+        stage('Zip Report') {
+            steps {
+                script {
+                    if (fileExists('target/site/allure-maven-plugin')) {
+                        zip zipFile: 'allure-report.zip',
+                            dir: 'target/site/allure-maven-plugin',
+                            archive: true
+                    }
+                }
+            }
+        }
+
+        stage('Publish Allure') {
+            steps {
                 allure includeProperties: false, results: [
-                    [path: 'target/allure-results'],
-                    [path: 'target/karate-reports']
+                    [path: 'target/allure-results']
                 ]
             }
         }
     }
 
     post {
+
         always {
-           // This will look everywhere in the workspace for any .log files
             archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
             junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
         }
 
         success {
             emailext(
-                subject: "✅ Karate Tests Passed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "✅ API Tests Passed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<h2>Build Successful 🚀</h2>
-                         <b>Environment:</b> ${params.TEST_ENV} <br>
+                         <b>Environment:</b> ${params.TEST_ENV}<br>
                          <b>Allure Report:</b> <a href="${env.BUILD_URL}allure">View Online</a>""",
                 attachmentsPattern: 'allure-report.zip',
                 mimeType: 'text/html',
@@ -96,12 +136,11 @@ pipeline {
         }
 
         unstable {
-            // This triggers if tests fail but the pipeline finished
             emailext(
-                subject: "⚠️ Karate Tests Unstable | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "⚠️ API Tests Unstable | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<h2>Tests Failed ⚠️</h2>
-                         <b>Environment:</b> ${params.TEST_ENV} <br>
-                         <b>Check Allure for details:</b> <a href="${env.BUILD_URL}allure">View Report</a>""",
+                         <b>Environment:</b> ${params.TEST_ENV}<br>
+                         <a href="${env.BUILD_URL}allure">View Report</a>""",
                 attachmentsPattern: 'allure-report.zip',
                 mimeType: 'text/html',
                 to: "${EMAIL_RECIPIENTS}"
@@ -110,14 +149,11 @@ pipeline {
 
         failure {
             emailext(
-                subject: "❌ Karate Build Failed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "❌ Pipeline Failed | ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<h2>Pipeline Error ❌</h2>
-                         <b>The build crashed before finishing.</b><br>
                          <a href="${env.BUILD_URL}console">Console Output</a>""",
                 to: "${EMAIL_RECIPIENTS}"
             )
         }
     }
 }
-
-
