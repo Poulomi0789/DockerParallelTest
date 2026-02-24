@@ -17,49 +17,36 @@ pipeline {
             }
         }
 
-        stage('Parallel Test Execution') {
-            parallel {
-                stage('Smoke Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
+stage('Parallel Test Execution') {
+            steps {
+                // Outer timeout to prevent the whole stage from hanging
+                timeout(time: 15, unit: 'MINUTES') {
+                    parallel(
+                        "Smoke Tests": {
+                            node {
+                                docker.image("${MAVEN_IMAGE}").inside("-v ${WORKSPACE}:/workspace") {
+                                    sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports; exit 0"
+                                }
+                            }
+                        },
+                        "Regression Tests": {
+                            node {
+                                docker.image("${MAVEN_IMAGE}").inside("-v ${WORKSPACE}:/workspace") {
+                                    sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports; exit 0"
+                                }
+                            }
+                        },
+                        "Sanity Tests": {
+                            node {
+                                docker.image("${MAVEN_IMAGE}").inside("-v ${WORKSPACE}:/workspace") {
+                                    sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports; exit 0"
+                                }
+                            }
                         }
-                    }
-                    steps {
-                        // Added -Dsurefire.reportsDirectory to isolate results
-                        sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports"
-                    }
-                }
-
-                stage('Regression Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
-                    steps {
-                        // Added -Dsurefire.reportsDirectory to isolate results
-                        sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports"
-                    }
-                }
-
-                stage('Sanity Tests') {
-                    agent {
-                        docker { 
-                            image "${MAVEN_IMAGE}"
-                            reuseNode true 
-                        }
-                    }
-                    steps {
-                        // Added -Dsurefire.reportsDirectory to isolate results
-                        sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports"
-                    }
+                    )
                 }
             }
         }
-
         stage('Generate Allure Report') {
             steps {
                 // Updated to pull from the three isolated directories
@@ -105,4 +92,5 @@ pipeline {
         }
     }
 }
+
 
