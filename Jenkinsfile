@@ -25,23 +25,23 @@ pipeline {
             }
         }
 
-        stage('Parallel Test Execution') {
+       stage('Parallel Test Execution') {
             parallel {
                 stage('Smoke Tests') {
                     steps {
-                        sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
 
                 stage('Regression Tests') {
                     steps {
-                        sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
 
                 stage('Sanity Tests') {
                     steps {
-                        sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true"
+                        sh "docker run --rm -v \$(pwd):/workspace -w /workspace ${MAVEN_IMAGE} mvn clean test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true"
                     }
                 }
             }
@@ -82,3 +82,4 @@ pipeline {
         }
     }
 }
+
