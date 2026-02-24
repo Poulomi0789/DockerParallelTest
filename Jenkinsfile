@@ -11,60 +11,94 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
 
+        stage('Clean Old Reports') {
+            steps {
+                sh 'rm -rf target'
+            }
+        }
+
         stage('Parallel Test Execution') {
             parallel {
+
                 stage('Smoke Tests') {
-                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
+                    agent {
+                        docker {
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true
+                        }
+                    }
                     steps {
                         timeout(time: 10, unit: 'MINUTES') {
-                            // Added the Allure Karate plugin to the command
-                            sh "mvn test -Dcucumber.filter.tags=@smoke -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/smoke-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
+                            sh """
+                            mvn clean test \
+                            -Dcucumber.filter.tags=@smoke \
+                            -Denv=qa \
+                            -Dmaven.test.failure.ignore=true
+                            """
                         }
                     }
                 }
 
                 stage('Regression Tests') {
-                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
+                    agent {
+                        docker {
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true
+                        }
+                    }
                     steps {
                         timeout(time: 10, unit: 'MINUTES') {
-                            sh "mvn test -Dcucumber.filter.tags=@regression -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/regression-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
+                            sh """
+                            mvn test \
+                            -Dcucumber.filter.tags=@regression \
+                            -Denv=qa \
+                            -Dmaven.test.failure.ignore=true
+                            """
                         }
                     }
                 }
 
                 stage('Sanity Tests') {
-                    agent { docker { image "${MAVEN_IMAGE}"; reuseNode true } }
+                    agent {
+                        docker {
+                            image "${MAVEN_IMAGE}"
+                            reuseNode true
+                        }
+                    }
                     steps {
                         timeout(time: 10, unit: 'MINUTES') {
-                            sh "mvn test -Dcucumber.filter.tags=@sanity -Denv=qa -Dmaven.test.failure.ignore=true -Dsurefire.reportsDirectory=target/sanity-reports -Dkarate.options='--plugin io.qameta.allure.karate.AllureKarate'; exit 0"
+                            sh """
+                            mvn test \
+                            -Dcucumber.filter.tags=@sanity \
+                            -Denv=qa \
+                            -Dmaven.test.failure.ignore=true
+                            """
                         }
                     }
                 }
             }
         }
-        
+
         stage('Generate Allure Report') {
             steps {
                 allure includeProperties: false,
                        jdk: '',
-                       results: [
-                           [path: "target/smoke-reports"],
-                           [path: "target/regression-reports"],
-                           [path: "target/sanity-reports"]
-                       ]
+                       results: [[path: "target/allure-results"]]
             }
         }
     }
 
     post {
+
         always {
-            junit 'target/**/*-reports/*.xml'
+            junit 'target/surefire-reports/*.xml'
         }
 
         success {
@@ -86,4 +120,3 @@ pipeline {
         }
     }
 }
-
