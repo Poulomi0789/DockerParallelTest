@@ -1,3 +1,6 @@
 {
   "baseUrl": "https://jsonplaceholder.typicode.com"
+  "authUrl": "https://auth-dev.jsonplaceholder.typicode.com/token",
+  "clientId": "your_id",
+  "clientSecret": "your_secret"
 }
